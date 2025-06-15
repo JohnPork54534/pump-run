@@ -153,10 +153,23 @@
 
     let coin = {
       x: 50, y: 240, width: 60, height: 60,
-      vy: 0, jump: -12, grounded: true
+      vy: 0, jump: -10, grounded: true
     };
 
     let obstacles = [];
+    let dustParticles = [];
+
+    function createDust() {
+      for (let i = 0; i < 3; i++) {
+        dustParticles.push({
+          x: coin.x + 10,
+          y: coin.y + coin.height - 5,
+          size: Math.random() * 4 + 2,
+          opacity: 1,
+          vx: -(Math.random() * 1.5 + 0.5)
+        });
+      }
+    }
 
     function drawBackground() {
       ctx.fillStyle = "#111";
@@ -180,10 +193,10 @@
       if (Math.random() < 0.5) {
         let options = [btcImg, ethImg, dogeImg, solImg, pepeImg, cheemsImg];
         let img = options[Math.floor(Math.random() * options.length)];
-        obstacles.push({ x: canvas.width, y: floorY - 50, width: 50, height: 50, img, type: "ground" });
+        obstacles.push({ x: canvas.width, y: floorY - 50, width: 50, height: 50, img });
       } else {
         let img = flyingObstacles[Math.floor(Math.random() * flyingObstacles.length)];
-        obstacles.push({ x: canvas.width, y: 215, width: 50, height: 40, img, type: "fly" });
+        obstacles.push({ x: canvas.width, y: 215, width: 50, height: 40, img });
       }
     }
 
@@ -198,6 +211,21 @@
       else if (coinState === "duck") currentImage = pillDuckImg;
 
       ctx.drawImage(currentImage, coin.x, coin.y + (coinState === "duck" ? 10 : 0), coin.width, coin.height);
+
+      if (coinState === "duck" && coin.grounded) {
+        createDust();
+      }
+
+      dustParticles.forEach((p, i) => {
+        ctx.fillStyle = `rgba(200,200,200,${p.opacity})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+
+        p.x += p.vx;
+        p.opacity -= 0.02;
+        if (p.opacity <= 0) dustParticles.splice(i, 1);
+      });
 
       coin.vy += gravity;
       coin.y += coin.vy;
@@ -214,19 +242,13 @@
       for (let i = obstacles.length - 1; i >= 0; i--) {
         let obs = obstacles[i];
         obs.x -= gameSpeed;
+
         ctx.drawImage(obs.img, obs.x, obs.y, obs.width, obs.height);
 
-        let reducedX = obs.x;
-        let reducedY = obs.y;
-        let reducedWidth = obs.width;
-        let reducedHeight = obs.height;
-
-        if (obs.type === "ground") {
-          reducedWidth *= 0.88;
-          reducedHeight *= 0.88;
-          reducedX += (obs.width - reducedWidth) / 2;
-          reducedY += (obs.height - reducedHeight) / 2;
-        }
+        let reducedWidth = obs.width * 0.88;
+        let reducedHeight = obs.height * 0.88;
+        let reducedX = obs.x + (obs.width - reducedWidth) / 2;
+        let reducedY = obs.y + (obs.height - reducedHeight) / 2;
 
         let hitboxY = coin.y + (coinState === "duck" ? 30 : 10);
         let hitboxHeight = coinState === "duck" ? 30 : 40;
@@ -254,7 +276,7 @@
       ctx.fillText("Score: " + score, 10, 30);
 
       if (score > 0 && score % 10 === 0) {
-        gameSpeed += 0.013; // slower speed increase
+        gameSpeed += 0.013;
       }
 
       requestAnimationFrame(updateGame);
@@ -275,6 +297,7 @@
       coin.vy = 0;
       coinState = "run";
       obstacles = [];
+      dustParticles = [];
       gameRunning = true;
       gameOverScreen.style.display = "none";
       updateGame();
@@ -292,10 +315,10 @@
     });
 
     window.addEventListener("keydown", function(e) {
-      if (["ArrowDown", "KeyS"].includes(e.code) && coin.grounded && gameRunning) {
+      if ((e.code === "ArrowDown" || e.code === "KeyS") && coin.grounded && gameRunning) {
         coinState = "duck";
       }
-      if (["Space", "KeyW"].includes(e.code) && coin.grounded && gameRunning) {
+      if ((e.code === "Space" || e.code === "KeyW") && coin.grounded && gameRunning) {
         coin.vy = coin.jump;
         coin.grounded = false;
         jumpSound.currentTime = 0;
@@ -308,7 +331,7 @@
     });
 
     window.addEventListener("keyup", function(e) {
-      if (["ArrowDown", "KeyS"].includes(e.code) && coinState === "duck") {
+      if ((e.code === "ArrowDown" || e.code === "KeyS") && coinState === "duck") {
         coinState = "run";
       }
     });
