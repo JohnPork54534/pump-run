@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Coin Runner</title>
+  <style>
+    body {
+      margin: 0;
+      background: #111;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      height: 100vh;
+    }
+    #gameContainer {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: transform 0.1s ease;
+    }
+    #gameContainer.shake {
+      animation: shake 0.3s;
+    }
+    @keyframes shake {
+      0% { transform: translate(2px, 2px); }
+      25% { transform: translate(-2px, -2px); }
+      50% { transform: translate(2px, -2px); }
+      75% { transform: translate(-2px, 2px); }
+      100% { transform: translate(0, 0); }
+    }
+    #gameBanner {
+      margin-bottom: 20px;
+    }
+    #gameBanner img {
+      max-width: 100%;
+      height: auto;
+    }
+    canvas {
+      background: #111;
+      border: 2px solid #fff;
+    }
+    #gameOverScreen {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.85);
+      color: white;
+      padding: 40px;
+      border-radius: 10px;
+      text-align: center;
+      font-family: monospace;
+      display: none;
+      z-index: 2;
+    }
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      background: white;
+      color: black;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    #twitterLink {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      align-items: center;
+      font-family: monospace;
+      font-size: 20px;
+      z-index: 5;
+    }
+    #twitterLink a {
+      color: #1DA1F2;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+    }
+    #twitterLink img {
+      width: 28px;
+      height: 28px;
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div id="gameContainer">
+    <div id="gameBanner">
+      <img src="assets/banner.png" alt="Game Banner">
+    </div>
+    <canvas id="game" width="800" height="300"></canvas>
+  </div>
+
+  <div id="twitterLink">
+    <a href="https://x.com/PumpRunOnSol" target="_blank">
+      <img src="assets/x_logo.png" alt="X Icon">
+      Follow us on X
+    </a>
+  </div>
+
+  <div id="gameOverScreen">
+    <h2>Game Over</h2>
+    <p id="finalScore"></p>
+    <button onclick="restartGame()">Restart</button>
+  </div>
+
+  <audio id="jumpSound" src="assets/jump.mp3" preload="auto"></audio>
+  <audio id="hitSound" src="assets/hit.mp3" preload="auto"></audio>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const floorY = 290;
+    const gameContainer = document.getElementById("gameContainer");
+
+    const moonImg = new Image(); moonImg.src = "assets/moon.png";
+    let moonX = 600;
+
+    const stars = Array.from({ length: 50 }, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      size: Math.random() * 2 + 1
+    }));
+
+    const pillRunImg = new Image(); pillRunImg.src = "assets/pill-run.png";
+    const pillJumpImg = new Image(); pillJumpImg.src = "assets/pill-jump.png";
+    const pillDuckImg = new Image(); pillDuckImg.src = "assets/pill-duck.png";
+
+    const btcImg = new Image(); btcImg.src = "assets/btc.png";
+    const ethImg = new Image(); ethImg.src = "assets/eth.png";
+    const dogeImg = new Image(); dogeImg.src = "assets/doge.png";
+    const solImg = new Image(); solImg.src = "assets/sol.png";
+    const pepeImg = new Image(); pepeImg.src = "assets/pepe.png";
+    const cheemsImg = new Image(); cheemsImg.src = "assets/cheems.png";
+
+    const fly1 = new Image(); fly1.src = "assets/fly1.png";
+    const fly2 = new Image(); fly2.src = "assets/fly2.png";
+    const fly3 = new Image(); fly3.src = "assets/fly3.png";
+    const flyingObstacles = [fly1, fly2, fly3];
+
+    const jumpSound = document.getElementById("jumpSound");
+    const hitSound = document.getElementById("hitSound");
+    const gameOverScreen = document.getElementById("gameOverScreen");
+    const finalScoreText = document.getElementById("finalScore");
+
+    let gravity = 0.6;
+    let gameSpeed = 3.6;
+    let score = 0;
+    let gameRunning = true;
+    let coinState = "run";
+
+    let coin = {
+      x: 50, y: 240, width: 60, height: 60,
+      vy: 0, jump: -12, grounded: true
+    };
+
+    let obstacles = [];
+
+    function drawBackground() {
+      ctx.fillStyle = "#111";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      stars.forEach(star => {
+        star.x -= 0.3;
+        if (star.x < 0) star.x = canvas.width;
+        ctx.fillStyle = "white";
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.size, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+
+      moonX -= 0.1;
+      if (moonX < -100) moonX = canvas.width;
+      ctx.drawImage(moonImg, moonX, 20, 60, 60);
+    }
+
+    function spawnObstacle() {
+      if (Math.random() < 0.5) {
+        let options = [btcImg, ethImg, dogeImg, solImg, pepeImg, cheemsImg];
+        let img = options[Math.floor(Math.random() * options.length)];
+        obstacles.push({ x: canvas.width, y: floorY - 50, width: 50, height: 50, img, type: "ground" });
+      } else {
+        let img = flyingObstacles[Math.floor(Math.random() * flyingObstacles.length)];
+        obstacles.push({ x: canvas.width, y: 215, width: 50, height: 40, img, type: "fly" });
+      }
+    }
+
+    function updateGame() {
+      if (!gameRunning) return;
+      drawBackground();
+      ctx.fillStyle = "#333";
+      ctx.fillRect(0, floorY, canvas.width, 10);
+
+      let currentImage = pillRunImg;
+      if (coinState === "jump") currentImage = pillJumpImg;
+      else if (coinState === "duck") currentImage = pillDuckImg;
+
+      ctx.drawImage(currentImage, coin.x, coin.y + (coinState === "duck" ? 10 : 0), coin.width, coin.height);
+
+      coin.vy += gravity;
+      coin.y += coin.vy;
+
+      if (coin.y >= 240) {
+        coin.y = 240;
+        coin.vy = 0;
+        coin.grounded = true;
+        if (coinState === "jump") coinState = "run";
+      } else {
+        coin.grounded = false;
+      }
+
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        let obs = obstacles[i];
+        obs.x -= gameSpeed;
+        ctx.drawImage(obs.img, obs.x, obs.y, obs.width, obs.height);
+
+        let reducedX = obs.x;
+        let reducedY = obs.y;
+        let reducedWidth = obs.width;
+        let reducedHeight = obs.height;
+
+        if (obs.type === "ground") {
+          reducedWidth *= 0.88;
+          reducedHeight *= 0.88;
+          reducedX += (obs.width - reducedWidth) / 2;
+          reducedY += (obs.height - reducedHeight) / 2;
+        }
+
+        let hitboxY = coin.y + (coinState === "duck" ? 30 : 10);
+        let hitboxHeight = coinState === "duck" ? 30 : 40;
+
+        if (
+          coin.x + 10 < reducedX + reducedWidth &&
+          coin.x + coin.width - 10 > reducedX &&
+          hitboxY < reducedY + reducedHeight &&
+          hitboxY + hitboxHeight > reducedY
+        ) {
+          hitSound.currentTime = 0;
+          hitSound.play();
+          gameOver();
+          return;
+        }
+
+        if (obs.x + obs.width < 0) {
+          obstacles.splice(i, 1);
+          score++;
+        }
+      }
+
+      ctx.fillStyle = "white";
+      ctx.font = "20px monospace";
+      ctx.fillText("Score: " + score, 10, 30);
+
+      if (score > 0 && score % 10 === 0) {
+        gameSpeed += 0.013; // slower speed increase
+      }
+
+      requestAnimationFrame(updateGame);
+    }
+
+    function gameOver() {
+      gameRunning = false;
+      finalScoreText.textContent = "Your score: " + score;
+      gameOverScreen.style.display = "block";
+      gameContainer.classList.add("shake");
+      setTimeout(() => gameContainer.classList.remove("shake"), 300);
+    }
+
+    function restartGame() {
+      score = 0;
+      gameSpeed = 3.6;
+      coin.y = 240;
+      coin.vy = 0;
+      coinState = "run";
+      obstacles = [];
+      gameRunning = true;
+      gameOverScreen.style.display = "none";
+      updateGame();
+    }
+
+    Promise.all([
+      pillRunImg.decode(), pillJumpImg.decode(), pillDuckImg.decode(),
+      btcImg.decode(), ethImg.decode(), dogeImg.decode(),
+      solImg.decode(), pepeImg.decode(), cheemsImg.decode(),
+      fly1.decode(), fly2.decode(), fly3.decode(),
+      moonImg.decode()
+    ]).then(() => {
+      setInterval(spawnObstacle, 1500);
+      updateGame();
+    });
+
+    window.addEventListener("keydown", function(e) {
+      if (["ArrowDown", "KeyS"].includes(e.code) && coin.grounded && gameRunning) {
+        coinState = "duck";
+      }
+      if (["Space", "KeyW"].includes(e.code) && coin.grounded && gameRunning) {
+        coin.vy = coin.jump;
+        coin.grounded = false;
+        jumpSound.currentTime = 0;
+        jumpSound.play();
+        coinState = "jump";
+      }
+      if (e.code === "KeyR" && !gameRunning) {
+        restartGame();
+      }
+    });
+
+    window.addEventListener("keyup", function(e) {
+      if (["ArrowDown", "KeyS"].includes(e.code) && coinState === "duck") {
+        coinState = "run";
+      }
+    });
+  </script>
+</body>
+</html>
